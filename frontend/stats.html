@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>使用统计 - 学科学习 Agent</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;background:#f0f4f8;min-height:100vh;padding:24px}
+    h1{text-align:center;color:#4338ca;font-size:22px;margin-bottom:24px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;max-width:900px;margin:0 auto 24px}
+    .card{background:white;border-radius:14px;padding:20px;box-shadow:0 1px 6px rgba(0,0,0,.08);text-align:center}
+    .card .num{font-size:36px;font-weight:700;color:#667eea}
+    .card .label{font-size:13px;color:#64748b;margin-top:4px}
+    .section{max-width:900px;margin:0 auto 20px;background:white;border-radius:14px;padding:20px;box-shadow:0 1px 6px rgba(0,0,0,.08)}
+    .section h2{font-size:15px;color:#1e293b;margin-bottom:14px;font-weight:600}
+    .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px}
+    .bar-row .name{width:90px;color:#475569;text-align:right;flex-shrink:0}
+    .bar-wrap{flex:1;background:#f1f5f9;border-radius:6px;height:20px;overflow:hidden}
+    .bar{height:100%;background:linear-gradient(90deg,#667eea,#764ba2);border-radius:6px;transition:width .4s}
+    .bar-row .cnt{width:36px;color:#4338ca;font-weight:600;flex-shrink:0}
+    .daily-row{display:flex;align-items:flex-end;gap:6px;height:80px;padding-bottom:4px}
+    .daily-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+    .daily-bar-wrap{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center}
+    .daily-bar{width:70%;background:linear-gradient(180deg,#667eea,#764ba2);border-radius:4px 4px 0 0;min-height:2px}
+    .daily-date{font-size:10px;color:#94a3b8;white-space:nowrap}
+    .daily-cnt{font-size:11px;color:#4338ca;font-weight:600}
+    .back{display:block;text-align:center;margin:0 auto 24px;color:#667eea;font-size:14px;text-decoration:none}
+    .back:hover{text-decoration:underline}
+    .empty{text-align:center;color:#94a3b8;padding:40px;font-size:14px}
+  </style>
+</head>
+<body>
+<h1>📊 使用统计数据</h1>
+<a href="/" class="back">← 返回学习助手</a>
+<div id="app"><div class="empty">加载中...</div></div>
+
+<script>
+const SUBJECT_LABELS={math:"📐 数学",physics:"⚗️ 物理",chemistry:"🧪 化学",biology:"🧬 生物",chinese:"📖 语文",english:"🌐 英语",history:"🏛️ 历史",geography:"🌍 地理",general:"📚 通用"};
+const INTENT_LABELS={solver:"🔢 解题",knowledge:"📖 知识",quiz:"✏️ 练习"};
+const DIFF_LABELS={basic:"🟢 基础",intermediate:"🟡 提高",advanced:"🔴 竞赛"};
+
+async function load(){
+  const res=await fetch("/stats");
+  const d=await res.json();
+  if(d.total===0){document.getElementById("app").innerHTML='<div class="empty">暂无使用记录，快去邀请同学试用吧！</div>';return;}
+  let html=`
+  <div class="grid">
+    <div class="card"><div class="num">${d.total}</div><div class="label">总对话次数</div></div>
+    <div class="card"><div class="num">${d.sessions}</div><div class="label">独立用户数</div></div>
+    <div class="card"><div class="num">${Object.keys(d.daily).length}</div><div class="label">活跃天数</div></div>
+    <div class="card"><div class="num">${Math.round(d.total/Math.max(d.sessions,1))}</div><div class="label">人均对话次数</div></div>
+  </div>`;
+
+  // 学科分布
+  html+=barSection("学科分布",d.subjects,SUBJECT_LABELS);
+  html+=barSection("使用类型",d.intents,INTENT_LABELS);
+  html+=barSection("难度分布",d.difficulties,DIFF_LABELS);
+
+  // 每日趋势
+  const days=Object.keys(d.daily);
+  if(days.length>0){
+    const maxVal=Math.max(...Object.values(d.daily));
+    html+=`<div class="section"><h2>📅 每日使用趋势（最近${days.length}天）</h2><div class="daily-row">`;
+    days.forEach(day=>{
+      const cnt=d.daily[day];
+      const h=Math.round((cnt/maxVal)*70)+2;
+      html+=`<div class="daily-col">
+        <div class="daily-cnt">${cnt}</div>
+        <div class="daily-bar-wrap"><div class="daily-bar" style="height:${h}px"></div></div>
+        <div class="daily-date">${day.slice(5)}</div>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  }
+
+  document.getElementById("app").innerHTML=html;
+}
+
+function barSection(title,data,labels){
+  const entries=Object.entries(data).sort((a,b)=>b[1]-a[1]);
+  if(!entries.length) return "";
+  const max=entries[0][1];
+  let html=`<div class="section"><h2>${title}</h2>`;
+  entries.forEach(([k,v])=>{
+    const label=labels[k]||k;
+    const pct=Math.round((v/max)*100);
+    html+=`<div class="bar-row"><span class="name">${label}</span><div class="bar-wrap"><div class="bar" style="width:${pct}%"></div></div><span class="cnt">${v}</span></div>`;
+  });
+  return html+"</div>";
+}
+
+load();
+</script>
+</body>
+</html>

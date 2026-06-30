@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>错题本 - 学科学习 Agent</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;background:#f0f4f8;min-height:100vh;padding:20px}
+    h1{text-align:center;color:#4338ca;font-size:20px;margin-bottom:8px}
+    .sub{text-align:center;color:#94a3b8;font-size:13px;margin-bottom:20px}
+    .back{display:block;text-align:center;margin-bottom:16px;color:#667eea;font-size:14px;text-decoration:none}
+    .back:hover{text-decoration:underline}
+    .filter-row{display:flex;gap:8px;max-width:780px;margin:0 auto 16px;flex-wrap:wrap}
+    .filter-btn{padding:5px 14px;border-radius:16px;border:1.5px solid #c7d2fe;background:white;color:#4338ca;font-size:13px;cursor:pointer}
+    .filter-btn.active{background:#667eea;color:white;border-color:#667eea}
+    #list{max-width:780px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+    .card{background:white;border-radius:14px;padding:18px;box-shadow:0 1px 6px rgba(0,0,0,.08)}
+    .card.reviewed{opacity:.55}
+    .card-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+    .tag{font-size:11.5px;padding:3px 10px;border-radius:10px;font-weight:500}
+    .tag.subject{background:#f0fdf4;color:#166534}
+    .tag.reviewed-tag{background:#f1f5f9;color:#64748b}
+    .tag.pending-tag{background:#fef3c7;color:#92400e}
+    .card-time{font-size:12px;color:#94a3b8;margin-left:auto}
+    .card-question{font-size:14px;color:#1e293b;font-weight:500;margin-bottom:8px;line-height:1.5}
+    .kp-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+    .kp-chip{background:#e0e7ff;color:#3730a3;border-radius:6px;padding:2px 8px;font-size:12px}
+    .card-solution{font-size:13px;color:#475569;line-height:1.6;max-height:80px;overflow:hidden;transition:max-height .3s}
+    .card-solution.expanded{max-height:600px}
+    .card-actions{display:flex;gap:8px;margin-top:10px}
+    .btn{padding:5px 14px;border-radius:8px;font-size:13px;cursor:pointer;border:none}
+    .btn-expand{background:#f1f5f9;color:#475569}
+    .btn-review{background:#667eea;color:white}
+    .btn-review.done{background:#d1fae5;color:#065f46;cursor:default}
+    .empty{text-align:center;color:#94a3b8;padding:60px;font-size:14px}
+  </style>
+</head>
+<body>
+<h1>📓 错题本</h1>
+<p class="sub">记录难题，定期复习，夯实基础</p>
+<a href="/" class="back">← 返回学习助手</a>
+
+<div class="filter-row" id="filters">
+  <button class="filter-btn active" onclick="filterSubject('all',this)">全部</button>
+  <button class="filter-btn" onclick="filterSubject('math',this)">📐 数学</button>
+  <button class="filter-btn" onclick="filterSubject('physics',this)">⚗️ 物理</button>
+  <button class="filter-btn" onclick="filterSubject('chemistry',this)">🧪 化学</button>
+  <button class="filter-btn" onclick="filterSubject('biology',this)">🧬 生物</button>
+  <button class="filter-btn" onclick="filterSubject('pending',this)">⏳ 待复习</button>
+</div>
+
+<div id="list"><div class="empty">加载中...</div></div>
+
+<script>
+const SUBJECT_LABELS={math:"📐 数学",physics:"⚗️ 物理",chemistry:"🧪 化学",biology:"🧬 生物",chinese:"📖 语文",english:"🌐 英语",history:"🏛️ 历史",geography:"🌍 地理",general:"📚 通用"};
+let allMistakes=[];
+let currentFilter="all";
+
+async function load(){
+  const res=await fetch("/mistakes/list");
+  allMistakes=await res.json();
+  // 最新的在前
+  allMistakes.reverse();
+  render();
+}
+
+function filterSubject(sub,btn){
+  currentFilter=sub;
+  document.querySelectorAll(".filter-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  render();
+}
+
+function render(){
+  const list=document.getElementById("list");
+  let data=allMistakes;
+  if(currentFilter==="pending") data=data.filter(m=>!m.reviewed);
+  else if(currentFilter!=="all") data=data.filter(m=>m.subject===currentFilter);
+
+  if(!data.length){list.innerHTML='<div class="empty">暂无错题记录<br><small>在对话界面解题后，点击"加入错题本"保存</small></div>';return;}
+
+  list.innerHTML=data.map(m=>`
+    <div class="card ${m.reviewed?'reviewed':''}" id="card_${m.id}">
+      <div class="card-header">
+        <span class="tag subject">${SUBJECT_LABELS[m.subject]||m.subject}</span>
+        <span class="tag ${m.reviewed?'reviewed-tag':'pending-tag'}">${m.reviewed?'✅ 已复习':'⏳ 待复习'}</span>
+        <span class="card-time">${m.time}</span>
+      </div>
+      <div class="card-question">${escapeHtml(m.question)}</div>
+      ${m.knowledge_points?.length?`<div class="kp-row">${m.knowledge_points.map(p=>`<span class="kp-chip">${escapeHtml(p)}</span>`).join("")}</div>`:""}
+      <div class="card-solution" id="sol_${m.id}">${escapeHtml(m.solution.slice(0,120))}${m.solution.length>120?"...":""}</div>
+      <div class="card-actions">
+        <button class="btn btn-expand" onclick="toggleSol('${m.id}')">查看解析</button>
+        ${m.reviewed?`<button class="btn btn-review done">✅ 已复习</button>`:`<button class="btn btn-review" onclick="markDone('${m.id}',this)">标记已复习</button>`}
+      </div>
+    </div>
+  `).join("");
+}
+
+function toggleSol(id){
+  const el=document.getElementById("sol_"+id);
+  const m=allMistakes.find(x=>x.id===id);
+  if(!m) return;
+  if(el.classList.contains("expanded")){
+    el.classList.remove("expanded");
+    el.textContent=m.solution.slice(0,120)+(m.solution.length>120?"...":"");
+  } else {
+    el.classList.add("expanded");
+    el.textContent=m.solution;
+  }
+}
+
+async function markDone(id,btn){
+  await fetch("/mistakes/review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mistake_id:id})});
+  const m=allMistakes.find(x=>x.id===id);
+  if(m) m.reviewed=true;
+  btn.className="btn btn-review done";
+  btn.textContent="✅ 已复习";
+  const card=document.getElementById("card_"+id);
+  if(card) card.classList.add("reviewed");
+}
+
+function escapeHtml(s){return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+load();
+</script>
+</body>
+</html>

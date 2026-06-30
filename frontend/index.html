@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>学科学习辅助 Agent</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+      background: #f0f4f8;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Header ── */
+    header {
+      width: 100%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header .title-block h1 { font-size: 18px; font-weight: 600; }
+    header .title-block p { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+    header .nav-links { display: flex; gap: 10px; flex-shrink: 0; }
+    header .nav-links a {
+      color: rgba(255,255,255,0.9);
+      text-decoration: none;
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.18);
+      padding: 4px 10px;
+      border-radius: 12px;
+      white-space: nowrap;
+    }
+    header .nav-links a:hover { background: rgba(255,255,255,0.3); }
+
+    /* ── Quick Buttons ── */
+    .quick-btns {
+      display: flex;
+      gap: 7px;
+      padding: 9px 14px;
+      background: white;
+      width: 100%;
+      max-width: 780px;
+      border-bottom: 1px solid #e2e8f0;
+      flex-wrap: wrap;
+    }
+    .quick-btns button {
+      background: #eef2ff;
+      color: #4338ca;
+      border: none;
+      border-radius: 14px;
+      padding: 5px 12px;
+      font-size: 12.5px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .quick-btns button:hover { background: #c7d2fe; }
+
+    /* ── Chat Box ── */
+    #chat-box {
+      flex: 1;
+      overflow-y: auto;
+      width: 100%;
+      max-width: 780px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .msg { display: flex; flex-direction: column; max-width: 92%; }
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.bot  { align-self: flex-start; align-items: flex-start; }
+
+    .bubble {
+      padding: 11px 15px;
+      border-radius: 16px;
+      font-size: 14.5px;
+      line-height: 1.75;
+      word-break: break-word;
+    }
+    .msg.user .bubble {
+      background: #667eea;
+      color: white;
+      border-bottom-right-radius: 4px;
+      white-space: pre-wrap;
+    }
+    .msg.bot .bubble {
+      background: white;
+      color: #1a202c;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+    }
+
+    /* ── Markdown ── */
+    .md-content h1,.md-content h2,.md-content h3 { margin: 10px 0 5px; font-weight: 600; color: #1e293b; }
+    .md-content h1 { font-size: 18px; }
+    .md-content h2 { font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; }
+    .md-content h3 { font-size: 15px; }
+    .md-content p { margin: 5px 0; }
+    .md-content ul,.md-content ol { padding-left: 18px; margin: 5px 0; }
+    .md-content li { margin: 2px 0; }
+    .md-content strong { color: #4338ca; font-weight: 600; }
+    .md-content em { color: #64748b; }
+    .md-content code { background: #f1f5f9; color: #be185d; padding: 1px 5px; border-radius: 4px; font-size: 13px; font-family: "SF Mono", Consolas, monospace; }
+    .md-content pre { background: #1e293b; border-radius: 10px; padding: 12px 14px; margin: 8px 0; overflow-x: auto; }
+    .md-content pre code { background: none; color: #e2e8f0; padding: 0; font-size: 13px; }
+    .md-content blockquote { border-left: 3px solid #667eea; background: #f8f9ff; padding: 7px 12px; margin: 7px 0; border-radius: 0 8px 8px 0; color: #4338ca; }
+    .md-content table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+    .md-content th { background: #667eea; color: white; padding: 7px 10px; text-align: left; }
+    .md-content td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+    .md-content tr:nth-child(even) td { background: #f8fafc; }
+
+    /* ── Tags ── */
+    .meta-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+    .tag { font-size: 11.5px; padding: 2px 9px; border-radius: 10px; font-weight: 500; display: inline-block; }
+    .tag.intent-solver    { background: #fef3c7; color: #92400e; }
+    .tag.intent-knowledge { background: #d1fae5; color: #065f46; }
+    .tag.intent-quiz      { background: #e0e7ff; color: #3730a3; }
+    .tag.intent-error     { background: #fee2e2; color: #991b1b; }
+    .tag.subject          { background: #f0fdf4; color: #166534; }
+    .tag.diff-basic        { background: #f0fdf4; color: #166534; }
+    .tag.diff-intermediate { background: #fffbeb; color: #92400e; }
+    .tag.diff-advanced     { background: #fff1f2; color: #9f1239; }
+
+    /* ── Knowledge Card ── */
+    .knowledge-card {
+      margin-top: 7px;
+      background: #f8f9ff;
+      border: 1px solid #e0e7ff;
+      border-radius: 10px;
+      padding: 10px 13px;
+      font-size: 13px;
+    }
+    .knowledge-card .kc-title { font-weight: 600; color: #4338ca; font-size: 12px; margin-bottom: 5px; }
+    .kp-row { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+    .kp-chip { background: #e0e7ff; color: #3730a3; border-radius: 6px; padding: 2px 8px; font-size: 12px; }
+    .kc-method { color: #6366f1; font-size: 12.5px; margin-top: 3px; }
+    .kc-verify { font-size: 12px; margin-top: 5px; padding: 4px 8px; border-radius: 6px; }
+    .kc-verify.ok   { background: #f0fdf4; color: #166534; }
+    .kc-verify.warn { background: #fffbeb; color: #92400e; }
+
+    /* ── Cross Subject Card ── */
+    .cross-card {
+      margin-top: 7px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 10px;
+      padding: 9px 13px;
+      font-size: 12.5px;
+      color: #92400e;
+    }
+    .cross-card .cc-title { font-weight: 600; color: #c2410c; font-size: 12px; margin-bottom: 4px; }
+    .cross-item { margin-bottom: 2px; line-height: 1.5; }
+
+    /* ── Follow-up ── */
+    .followup-row { margin-top: 7px; }
+    .followup-title { font-size: 11.5px; color: #94a3b8; margin-bottom: 4px; }
+    .followup-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+    .followup-btn {
+      background: white; border: 1px solid #c7d2fe; color: #4338ca;
+      border-radius: 14px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; transition: all .2s;
+    }
+    .followup-btn:hover { background: #eef2ff; }
+
+    /* ── Save Mistake Button ── */
+    .save-mistake-btn {
+      margin-top: 6px;
+      background: none;
+      border: 1px dashed #fca5a5;
+      color: #ef4444;
+      border-radius: 12px;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .save-mistake-btn:hover { background: #fff1f2; }
+    .save-mistake-btn.saved { border-color: #86efac; color: #16a34a; cursor: default; }
+
+    /* ── Typing ── */
+    .typing-indicator {
+      display: flex; align-items: center; gap: 5px;
+      padding: 11px 14px; background: white; border-radius: 16px;
+      border-bottom-left-radius: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.08);
+      color: #94a3b8; font-size: 13px;
+    }
+    .dot { width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; animation: bounce 1.2s infinite; }
+    .dot:nth-child(2) { animation-delay: .2s; }
+    .dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+
+    /* ── Input Area ── */
+    #input-area {
+      width: 100%; max-width: 780px; background: white;
+      border-top: 1px solid #e2e8f0; padding: 10px 14px;
+      display: flex; gap: 9px; align-items: flex-end;
+    }
+    #user-input {
+      flex: 1; border: 1.5px solid #cbd5e0; border-radius: 12px;
+      padding: 9px 13px; font-size: 14px; resize: none; outline: none;
+      min-height: 42px; max-height: 120px; transition: border .2s; font-family: inherit;
+    }
+    #user-input:focus { border-color: #667eea; }
+    #send-btn {
+      background: linear-gradient(135deg,#667eea,#764ba2); color: white;
+      border: none; border-radius: 12px; padding: 9px 18px;
+      font-size: 14px; cursor: pointer; height: 42px; white-space: nowrap; transition: opacity .2s;
+    }
+    #send-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Mobile ── */
+    @media (max-width: 600px) {
+      header .title-block p { display: none; }
+      header .nav-links a { font-size: 11.5px; padding: 3px 8px; }
+      .bubble { font-size: 14px; padding: 10px 13px; }
+      .msg { max-width: 96%; }
+      #user-input { font-size: 16px; /* prevent iOS zoom */ }
+      .quick-btns { padding: 7px 10px; gap: 5px; }
+      .quick-btns button { font-size: 12px; padding: 4px 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="title-block">
+    <h1>📚 学科学习辅助 Agent</h1>
+    <p>多 Agent 工作流 · 解题 · 知识讲解 · 出题练习</p>
+  </div>
+  <div class="nav-links">
+    <a href="/mistakes-page">📓 错题本</a>
+    <a href="/stats-page">📊 统计</a>
+  </div>
+</header>
+
+<div class="quick-btns">
+  <button onclick="quickSend('帮我解一道题：已知函数f(x)=x²-2x+3，求最小值')">📐 数学解题</button>
+  <button onclick="quickSend('讲解一下牛顿第二定律')">⚗️ 物理知识</button>
+  <button onclick="quickSend('出几道关于化学方程式配平的练习题')">🧪 化学练习</button>
+  <button onclick="quickSend('解释一下DNA的复制过程')">🧬 生物知识</button>
+</div>
+
+<div id="chat-box">
+  <div class="msg bot">
+    <div class="bubble">
+      <div class="md-content">
+        <p>👋 你好！我是你的高中学科学习助手。</p>
+        <ul>
+          <li>📐 <strong>解题</strong>：发题目，步骤解析 + 考点提炼</li>
+          <li>📖 <strong>问知识点</strong>：概念讲解 + 跨学科联系</li>
+          <li>✏️ <strong>要练习题</strong>：由易到难的变式练习</li>
+          <li>📓 <strong>错题本</strong>：保存难题，定期复习</li>
+        </ul>
+        <p>右上角可查看错题本和使用统计。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="input-area">
+  <textarea id="user-input" placeholder="输入题目或问题，Enter 发送，Shift+Enter 换行..." rows="1"></textarea>
+  <button id="send-btn" onclick="sendMessage()">发送</button>
+</div>
+
+<script>
+  const sessionId = 'session_' + Date.now();
+  const chatBox   = document.getElementById('chat-box');
+  const input     = document.getElementById('user-input');
+  const sendBtn   = document.getElementById('send-btn');
+
+  const intentLabels = { solver:'🔢 解题模式', knowledge:'📖 知识讲解', quiz:'✏️ 出题练习', error:'⚠️ 出错了' };
+
+  marked.setOptions({ breaks: true, gfm: true });
+
+  function renderMarkdown(text) {
+    let html = marked.parse(text);
+    html = html.replace(/\$\$([^$]+?)\$\$/g, (_,e) => { try{return katex.renderToString(e.trim(),{displayMode:true})}catch{return`<code>${e}</code>`} });
+    html = html.replace(/\$([^$\n]+?)\$/g,   (_,e) => { try{return katex.renderToString(e.trim(),{displayMode:false})}catch{return`<code>${e}</code>`} });
+    return html;
+  }
+
+  input.addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} });
+  input.addEventListener('input',   () => { input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,120)+'px'; });
+
+  function quickSend(text) { input.value=text; sendMessage(); }
+  function escapeHtml(s)   { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function appendUserMsg(text) {
+    const div=document.createElement('div'); div.className='msg user';
+    div.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`;
+    chatBox.appendChild(div); chatBox.scrollTop=chatBox.scrollHeight;
+  }
+
+  function appendTyping() {
+    const div=document.createElement('div'); div.className='msg bot'; div.id='typing-msg';
+    div.innerHTML=`<div class="typing-indicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div><span>多 Agent 分析中...</span></div>`;
+    chatBox.appendChild(div); chatBox.scrollTop=chatBox.scrollHeight;
+  }
+
+  function renderBotReply(data, origQuestion) {
+    const el=document.getElementById('typing-msg');
+    if(el) el.remove();
+
+    const div=document.createElement('div'); div.className='msg bot';
+
+    // 主回答
+    const bubble=document.createElement('div'); bubble.className='bubble';
+    const mdDiv=document.createElement('div'); mdDiv.className='md-content';
+    mdDiv.innerHTML=renderMarkdown(data.reply);
+    bubble.appendChild(mdDiv); div.appendChild(bubble);
+
+    // 标签行
+    const metaRow=document.createElement('div'); metaRow.className='meta-row';
+    if(intentLabels[data.intent]) metaRow.innerHTML+=`<span class="tag intent-${data.intent}">${intentLabels[data.intent]}</span>`;
+    if(data.subject_label) metaRow.innerHTML+=`<span class="tag subject">${data.subject_label}</span>`;
+    if(data.difficulty_label) metaRow.innerHTML+=`<span class="tag diff-${data.difficulty}">${data.difficulty_label}</span>`;
+    div.appendChild(metaRow);
+
+    // 知识点卡片（解题模式）
+    if(data.intent==='solver' && (data.knowledge_points?.length||data.method)) {
+      const card=document.createElement('div'); card.className='knowledge-card';
+      let h='<div class="kc-title">📌 考点提炼</div>';
+      if(data.knowledge_points?.length) {
+        h+=`<div class="kp-row">${data.knowledge_points.map(p=>`<span class="kp-chip">${escapeHtml(p)}</span>`).join('')}</div>`;
+      }
+      if(data.method) h+=`<div class="kc-method">🔑 方法：${escapeHtml(data.method)}</div>`;
+      // 计算验证结果
+      if(data.verify && data.verify.status==='ok') {
+        h+=`<div class="kc-verify ok">✅ Python 验算：${escapeHtml(String(data.verify.result))}（表达式：${escapeHtml(data.verify.expr)}）</div>`;
+      } else if(data.verify && data.verify.status==='warn') {
+        h+=`<div class="kc-verify warn">⚠️ 验算提示：${escapeHtml(data.verify.message)}</div>`;
+      }
+      card.innerHTML=h; div.appendChild(card);
+    }
+
+    // 跨学科联系
+    if(data.cross_subjects?.length) {
+      const cc=document.createElement('div'); cc.className='cross-card';
+      cc.innerHTML=`<div class="cc-title">🔗 跨学科联系</div>`
+        +data.cross_subjects.map(s=>`<div class="cross-item">・${escapeHtml(s)}</div>`).join('');
+      div.appendChild(cc);
+    }
+
+    // 追问建议
+    if(data.followups?.length) {
+      const fr=document.createElement('div'); fr.className='followup-row';
+      fr.innerHTML='<div class="followup-title">💬 继续探索</div><div class="followup-btns"></div>';
+      const btnsDiv=fr.querySelector('.followup-btns');
+      data.followups.forEach(q=>{
+        const btn=document.createElement('button'); btn.className='followup-btn';
+        btn.textContent=q; btn.onclick=()=>quickSend(q); btnsDiv.appendChild(btn);
+      });
+      div.appendChild(fr);
+    }
+
+    // 加入错题本（解题模式）
+    if(data.intent==='solver') {
+      const btn=document.createElement('button'); btn.className='save-mistake-btn';
+      btn.textContent='📌 加入错题本';
+      btn.onclick=async()=>{
+        if(btn.classList.contains('saved')) return;
+        await fetch('/mistakes/save',{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            session_id: sessionId,
+            subject: data.subject,
+            question: origQuestion,
+            solution: data.reply.slice(0,500),
+            knowledge_points: data.knowledge_points||[]
+          })
+        });
+        btn.textContent='✅ 已加入错题本'; btn.classList.add('saved');
+      };
+      div.appendChild(btn);
+    }
+
+    chatBox.appendChild(div); chatBox.scrollTop=chatBox.scrollHeight;
+    div.querySelectorAll('pre code').forEach(el=>hljs.highlightElement(el));
+  }
+
+  async function sendMessage() {
+    const text=input.value.trim(); if(!text) return;
+    appendUserMsg(text);
+    input.value=''; input.style.height='auto'; sendBtn.disabled=true;
+    appendTyping();
+    try {
+      const res=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sessionId,message:text})});
+      const data=await res.json();
+      renderBotReply(data, text);
+    } catch(e) {
+      const el=document.getElementById('typing-msg'); if(el) el.remove();
+      const div=document.createElement('div'); div.className='msg bot';
+      div.innerHTML=`<div class="bubble"><div class="md-content"><p>❌ 请求失败，请检查服务是否正常运行</p></div></div>`;
+      chatBox.appendChild(div);
+    }
+    sendBtn.disabled=false; chatBox.scrollTop=chatBox.scrollHeight;
+  }
+</script>
+</body>
+</html>
